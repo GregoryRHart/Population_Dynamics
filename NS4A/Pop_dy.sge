@@ -1,0 +1,57 @@
+#!/bin/bash
+
+#$ -S /bin/bash           # use bash shell
+#$ -V                     # inherit the submission environment 
+#$ -cwd                   # start job in submission directory
+
+#$ -m abe                 # email on abort, begin, and end
+#$ -M grhart2@illinois.edu    # email address
+
+##$ -l hostname=compute-0-5
+#$ -q all.q               # queue name
+#$ -pe openmp 8             # parallel environment & # cores
+#$ -l h_rt=300:00:00       # run time (hh:mm:ss)
+#$ -N NS4Apopdy
+#$ -j y
+
+
+echo " "
+echo "-------------------"
+echo "This is a $ENVIRONMENT job"
+echo "This job was submitted to the queue: $QUEUE"
+echo "The job's id is: $JOB_ID"
+echo "The job's name is: $JOB_NAME"
+echo "The job's home dir is: $SGE_O_HOME"
+echo "The job's working dir is: $SGE_O_WORKDIR"
+echo "The host node of this job is: $SGE_O_HOST"
+echo "The master node of this job is: $HOSTNAME"
+echo "The number of cores used by this job: $NSLOTS"
+echo "This job was submitted by: $SGE_O_LOGNAME"
+echo "-------------------"
+echo Running on host `hostname`
+echo Time is `date`
+echo "-------------------"
+echo " "
+
+#cp ../P1_target_reg.dat P1_target.dat
+#cp ../P2_target_reg.dat P2_target.dat
+#cp ../resIdx.dat .
+#cp ~/HCV/PottsOMP .
+#cp inputs.dat.Potts inputs.dat
+
+export OMP_NUM_THREADS=$NSLOTS
+export OMP_PROC_BIND=true
+./main
+
+#rm PottsOMP
+
+matlab -nodisplay -nodesktop -nosplash -r "parpool($NSLOTS/2); Pop_dy('',1,4.25);  exit";
+#Tcell_traj('');exit"
+
+echo " "
+echo Time is `date`
+echo "This job is DONE!"
+echo " "
+
+exit 0
+

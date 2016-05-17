@@ -1,0 +1,19 @@
+CXX = g++
+USE_OMP = y
+DEBUG = n
+UNIT_TESTING = n
+CXXFLAGS = -std=c++11 -O3 -I./
+LIBS = -L./ -l:libtrng4.a
+
+ifeq ($(DEBUG),y)
+	CXXFLAGS += -DDEBUG
+endif
+
+ifeq ($(UNIT_TESTING),y)
+	CXXFLAGS += -DUNIT_TESTING
+endif
+
+ifeq ($(USE_OMP),y)
+	CXXFLAGS += -fopenmp
+	LIBS += -lgomp
+endif

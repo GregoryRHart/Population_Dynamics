@@ -1,0 +1,19 @@
+CXX = g++
+USE_OMP = y
+DEBUG = n
+UNIT_TESTING = n
+CXXFLAGS = -std=c++11 -O3 -I./ -I/share/apps/include 
+LIBS = -L./ -L/share/apps/lib -l:libtrng4.a
+
+ifeq ($(DEBUG),y)
+	CXXFLAGS += -DDEBUG -g
+endif
+
+ifeq ($(UNIT_TESTING),y)
+	CXXFLAGS += -DUNIT_TESTING
+endif
+
+ifeq ($(BLAS),y)
+	CXXFLAGS += -DUSE_BLAS
+	LIBS += -L/home/software/atlas/atlas-3.8.3/lib -latlas -lf77blas -lcblas
+endif

@@ -1,0 +1,15 @@
+seed		-21841952	// random number generator seed
+m		41		// # sites in protein
+N		10000		// Population size
+progeny		5
+rate		0.001		// mutation rate mutation/replication
+n_cycles	1000		// # MC cycles to perform during each semi-analytical Newton descent iteration
+burnin		0
+sample_mod	1		// MC sampling modulus
+T		4.25		// temperature (values other than unity apply global rescaling of all a1/a2 parameters) [we operate in a gauge with k_B=1]
+print_mod	100		// frequency of prints to screen
+write_mod	10		// frequency of writes to file
+n_epitope	3
+n_T		100
+rep_lim		10
+T_penalty	100
