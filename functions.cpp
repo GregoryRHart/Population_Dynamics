@@ -16,6 +16,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
 #include <limits>
 #include <math.h>
 #include <stdlib.h>
@@ -389,13 +390,48 @@ int load_X2(std::string fstr, std::vector<long>& nRes, std::vector< std::vector<
 
 double energy(std::vector<int8_t>& sequence, long m, std::vector< std::vector<double> >& h, std::vector< std::vector< std::vector< std::vector<double> > > >& J){
     	double E=0;
-    	for	(long i=0; i<m; i++) {
+		
+    	for	(long i=0; i<m; i++) 
+		{
           E = E + h[i][sequence[i]];
-          for (long j=i+1; j<m; j++){
+		  for (long j=i+1; j<m; j++)
+		  {
 	     	E = E + J[i][j][sequence[i]][sequence[j]];
           }
-     }
+		}
                
+     return E;
+}
+
+double energy_P(std::vector<int8_t>& sequence, long m, std::vector< std::vector<double> >& h, std::vector< std::vector< std::vector< std::vector<double> > > >& J)
+{
+    	double E=0;
+		
+		#pragma omp parallel shared(E)
+		{
+			int size = omp_get_num_threads();
+			int rank = omp_get_thread_num();
+			
+			int len = (m-1)/size + 1;
+			int begin = rank * len;
+			int end = begin + len;
+			if(end > m)
+				end = m;
+			double E_P = 0;
+
+				for	(long i=begin; i<end; i++) 
+				{
+					E_P = E_P + h[i][sequence[i]];
+					for (long j=i+1; j<m; j++)
+					{
+						E = E + J[i][j][sequence[i]][sequence[j]];
+					}
+				}
+			#pragma omp atomic
+				E += E_P;
+			#pragma omp barrier
+		}
+		
      return E;
 }
 
@@ -403,4 +439,45 @@ double Tresponse(double affinity, double num_Ecells, double b, long N, double af
      double k = .01;//3;
      double mid = .1*N;
      return b*affinity*1.0/(1.0 + exp(-k*(num_Ecells-mid)));
+}
+
+void 
+init_energy_index(int m, int size, std::vector<std::vector<int>> & arr_idx)
+{
+	arr_idx.resize(size);
+	int i = 0;
+	bool rev = true;
+	while(i < m)
+	{
+		if(rev)
+			for(int j = 0; j < size; j++)
+			{
+				if(i < m)
+					arr_idx[j].push_back(i);
+				else break;
+				i++;
+			}
+		else
+			for(int j = size-1; j >=0; j--)
+			{
+				if(i < m)
+					arr_idx[j].push_back(i);
+				else break;
+				i++;
+			}
+		rev = !rev;
+	}
+}
+
+int 
+check_duplicate(int* arr, int size)
+{
+	std::sort(arr, arr+size);
+	int prev = arr[0];
+	for(int i = 1; i < size; i++)
+	{
+		if(arr[i] == prev) return i;
+		else prev = arr[i];
+	}
+	return 0;
 }
