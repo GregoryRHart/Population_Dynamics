@@ -1,19 +1,75 @@
-CXX = g++
 USE_OMP = y
+USE_ACC = n #must use PGI compiler
+USE_CUDA = n
+PROFILE = n
+COMPILER = GNU
 DEBUG = n
 UNIT_TESTING = n
-CXXFLAGS = -std=c++11 -O3 -I./ -I/share/apps/include 
-LIBS = -L./ -L/share/apps/lib -l:libtrng4.a
+CXXFLAGS = -std=c++11 -I./ -I/home/ccheng32/project/lib/include
+NVFLAGS  = -O3 -arch=sm_35 -I./ -I/home/ccheng32/project/lib/include
+
+ifeq ($(USE_OMP),y)
+	ifeq ($(COMPILER), GNU)
+		CXXFLAGS += -fopenmp -DUSE_OMP #-D_GLIBCXX_PARALLEL
+		LIBS += -lgomp
+	endif
+	ifeq ($(COMPILER), INTEL)
+		CXXFLAGS += -openmp -DUSE_OMP
+	endif
+	ifeq ($(COMPILER), PGI)
+		CXXFLAGS += -mp -DUSE_OMP
+	endif	
+endif
+
+#ifeq ($(USE_ACC), y)
+#	ifeq ($(COMPILER), PGI)
+#		CXXFLAGS += -acc -DUSE_ACC -Minfo=accel -ta=nvidia
+#	endif
+#endif
+
+ifeq ($(USE_CUDA), y)
+	CXXFLAGS += -DUSE_CUDA
+	LIBS += -L/usr/local/cuda/lib64 -lcudart
+endif
 
 ifeq ($(DEBUG),y)
-	CXXFLAGS += -DDEBUG -g
+	CXXFLAGS += -O0 -DDEBUG -g
+else
+	CXXFLAGS += -O3
+endif
+
+ifeq ($(PROFILE),y)
+	ifeq ($(COMPILER), GNU)
+		CXXFLAGS += -pg
+	endif
+	ifeq ($(COMPILER), INTEL)
+		CXXFLAGS += -debug inline-debug-info
+	endif
 endif
 
 ifeq ($(UNIT_TESTING),y)
 	CXXFLAGS += -DUNIT_TESTING
 endif
 
+ifeq ($(COMPILER), INTEL)
+	CXX = icc
+	LIBS += -L./ -L/home/ccheng32/project/lib/lib -l:libtrng4.a
+endif
+
+ifeq ($(COMPILER), GNU)
+	CXX = g++
+	LIBS += -L./ -L/home/ccheng32/project/lib/lib -l:libtrng4.a 
+endif
+
+ifeq ($(COMPILER), PGI)
+	CXX = pgc++
+	LIBS += -L./ -L/home/ccheng32/project/lib/lib -ltrng4
+	#CXXFLAGS += -lm
+endif
+
 ifeq ($(BLAS),y)
 	CXXFLAGS += -DUSE_BLAS
 	LIBS += -L/home/software/atlas/atlas-3.8.3/lib -latlas -lf77blas -lcblas
 endif
+
+
