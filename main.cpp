@@ -596,57 +596,57 @@ int main (int argc, char *argv[]) {
 			{
                 n_WTepitopes[i][j] = 0;
             }
-	    }
+       }
         }
        #pragma omp barrier
 
-        int ranInt1 = 0;	// IntGenerator(r)=number of mution for the parent sequence;
-        double ranNum1 = 0;     //=u(r)*safeUnity;	// range [0,1)
+        int ranInt1 = 0;   // IntGenerator(r)=number of mution for the parent sequence;
+        double ranNum1 = 0;     //=u(r)*safeUnity;   // range [0,1)
         long parent = 0;
         long site = 0;
         long res = 0;
         double Z_local = 0;
         double Ztemp_local = 0;
         double Z_local_eff = 0;
-		
-		
+      
+      
         // Have every sequence in the population produce offspring equal to the value of progeny. Mutating each offspring sequence as it is copied
         for(long k=0; k<progeny; k++)
-		{       // loop over the number of progeny
+      {       // loop over the number of progeny
             for(long i=begin; i<end; i++)
-			{   // loop over the processor's part of the population
+         {   // loop over the processor's part of the population
                 ranInt1 = IntGenerator(r);   // number of mution for the parent sequence;
                 for(long j=0; j<m; j++)
-				{     // copy parent sequence
+            {     // copy parent sequence
                     temp_pop[i+(N*k)][j] = population[i][j];
                 }
                 for(long j=0; j<ranInt1; j++)
-				{ // introduce mutations
+            { // introduce mutations
                     ranNum1 = u(r)*safeUnity;
-             	    site = (long)floor((double)ranNum1 * (double)m);
+                    site = (long)floor((double)ranNum1 * (double)m);
                     ranNum1 = u(r)*safeUnity;
                     res = (long)floor((double)ranNum1 * (double)(nRes[site]-1));
                     if (temp_pop[i+(N*k)][site] <= res) 
-					{
-						res++;
-					}
+               {
+                  res++;
+               }
                     temp_pop[i+(N*k)][site] = res;
                 }
-				
+            
                 idx[i+(N*k)] = i+(N*k);
                 double penalty = 0;
                 for(long j=0; j<n_epitope; j++)
-				{ // calculate T-cell susceptibility
+            { // calculate T-cell susceptibility
                     int index = 0;
                     int count = 0;
                     for(long position=epi_start[j]; position<epi_end[j]; position++)
-					{
+               {
                         index += place_value[j][count]*temp_pop[i+(N*k)][position];
                         count++;
                     }
                     double num_Ecells = 0;
                     for(long t=1; t<=rep_lim; t++)
-					{
+               {
                         num_Ecells += Tcells[j][t];
                     }
                     penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
@@ -656,16 +656,16 @@ int main (int argc, char *argv[]) {
                 Ztemp_local += temp_boltz[i+(N*k)];
                 occupied[i+(N*k)] = true;
             }
-		}
+      }
 
         // combine partition function from each processor
         #pragma omp atomic
             Ztemp += Ztemp_local;
-	
+   
         #pragma omp barrier
-		
+      
 
-#if PARTPARALLEL == 0		
+#if PARTPARALLEL == 0      
         #pragma omp single
         {
             sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
@@ -673,14 +673,14 @@ int main (int argc, char *argv[]) {
             for(long i=1; i<N*progeny; i++){
                 part_sum[i] = part_sum[i-1] + temp_boltz[idx[i]];
             }
-		
+      
             // pick sequences that survive to the final population based on their fitness
             Z = 0;
             Z_eff = 0;
             while(pos < N){
                 ranNum1 = u(r)*safeUnity*Ztemp;
                 long seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
-		seq_arr[pos] = seq;
+      seq_arr[pos] = seq;
                 while(!occupied[idx[seq]]){
                     seq++;
                 }
@@ -717,7 +717,7 @@ int main (int argc, char *argv[]) {
                     part_sum[i] -= temp_boltz[idx[seq]];
                 }
             }
-		
+      
         } // end #pragma omp single
         #pragma omp barrier
 #endif
@@ -727,106 +727,106 @@ int main (int argc, char *argv[]) {
 // PART 2 Introducing Mutation
 ///////////////////////////////
 
-	#pragma omp single
-	{
-		// make sure smaller numbers don't get rounded off
-		sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
+   #pragma omp single
+   {
+      // make sure smaller numbers don't get rounded off
+      sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
         part_sum[0] = temp_boltz[idx[0]];
         for(long i=1; i<N*progeny; i++)
-		{
+      {
             part_sum[i] = part_sum[i-1] + temp_boltz[idx[i]];
         }
-		// pick sequences that survive to the final population based on their fitness
+      // pick sequences that survive to the final population based on their fitness
         Z = 0;
         Z_eff = 0;
-	}
-	
+   }
+   
         while(pos < N)
-		{
- 			if(rank==0)
-			//#pragma omp single
-			{// only main thread start
-			double ranNum1 = u(r)*safeUnity*Ztemp;
-			long seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
-			seq_S = seq;
-			while(!occupied[idx[seq]])
-			{
-				seq++;
-			}
-			if(seq >= N*progeny)
-			{
-				cout << "Error in find, seq = " << seq << ", ranNum1 = " << ranNum1 << ", Ztemp = " << Ztemp << endl;
-			}
-			for(long j=0; j<m; j++)
-			{
-				population[pos][j]=temp_pop[idx[seq]][j];
-			}
-			// prime T cells
-			double penalty = 0;
-			for(long j=0; j<n_epitope; j++)
-			{
-				int index = 0;
-				int count = 0;
-				for(long position=epi_start[j]; position<epi_end[j]; position++)
-				{
-					index += place_value[j][count]*population[pos][position];
-					count++;
-				}
-				double num_Ecells = 0;
-				for(long t=1; t<=rep_lim; t++)
-				{
-					num_Ecells += Tcells[j][t];
-				} 
-				penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
-				n_WTepitopes[j][index]+=1.0;
-			}
-			penalty_S = penalty;
-			}// only main threadthread end 
-			else
-			{
-				
-			}
-			
-			#pragma omp barrier 
-						
-			double E_P = 0;
-			auto sequence = population[pos];
-			for	(auto i=energy_idx[rank].begin(); i!=energy_idx[rank].end(); i++) 
-			{
-				E_P += h[*i][sequence[*i]];
-				for (long j=(*i)+1; j<m; j++)
-				{
-					E_P += J[*i][j][sequence[*i]][sequence[j]];
-				}
-			}
-			#pragma omp atomic
-				E += E_P;
-				
-			#pragma omp barrier	
-				
-			if(rank==0)
-			//#pragma omp single
-			{	// only main thread start
-				boltzfac[pos] = exp(-E/T);
-				boltzfac_eff[pos] = boltzfac[pos]*exp(-penalty_S/T);
-				Z += boltzfac[pos];
-				Z_eff += boltzfac_eff[pos];
-				pos++;
-				occupied[idx[seq_S]] = false;
-				Ztemp -= temp_boltz[idx[seq_S]];
-			}// only main thread end
+      {
+          if(rank==0)
+         //#pragma omp single
+         {// only main thread start
+         double ranNum1 = u(r)*safeUnity*Ztemp;
+         long seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
+         seq_S = seq;
+         while(!occupied[idx[seq]])
+         {
+            seq++;
+         }
+         if(seq >= N*progeny)
+         {
+            cout << "Error in find, seq = " << seq << ", ranNum1 = " << ranNum1 << ", Ztemp = " << Ztemp << endl;
+         }
+         for(long j=0; j<m; j++)
+         {
+            population[pos][j]=temp_pop[idx[seq]][j];
+         }
+         // prime T cells
+         double penalty = 0;
+         for(long j=0; j<n_epitope; j++)
+         {
+            int index = 0;
+            int count = 0;
+            for(long position=epi_start[j]; position<epi_end[j]; position++)
+            {
+               index += place_value[j][count]*population[pos][position];
+               count++;
+            }
+            double num_Ecells = 0;
+            for(long t=1; t<=rep_lim; t++)
+            {
+               num_Ecells += Tcells[j][t];
+            } 
+            penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
+            n_WTepitopes[j][index]+=1.0;
+         }
+         penalty_S = penalty;
+         }// only main threadthread end 
+         else
+         {
+            
+         }
+         
+         #pragma omp barrier 
+                  
+         double E_P = 0;
+         auto sequence = population[pos];
+         for   (auto i=energy_idx[rank].begin(); i!=energy_idx[rank].end(); i++) 
+         {
+            E_P += h[*i][sequence[*i]];
+            for (long j=(*i)+1; j<m; j++)
+            {
+               E_P += J[*i][j][sequence[*i]][sequence[j]];
+            }
+         }
+         #pragma omp atomic
+            E += E_P;
+            
+         #pragma omp barrier   
+            
+         if(rank==0)
+         //#pragma omp single
+         {   // only main thread start
+            boltzfac[pos] = exp(-E/T);
+            boltzfac_eff[pos] = boltzfac[pos]*exp(-penalty_S/T);
+            Z += boltzfac[pos];
+            Z_eff += boltzfac_eff[pos];
+            pos++;
+            occupied[idx[seq_S]] = false;
+            Ztemp -= temp_boltz[idx[seq_S]];
+         }// only main thread end
 
-			if(size == 1 || rank != 0)
-			{
- 				#pragma omp for schedule(static)
-				for(long i=seq_S; i<N*progeny; i++)
-				{
-					part_sum[i] -= temp_boltz[idx[seq_S]];
-				} 
-			}
-			#pragma omp barrier
+         if(size == 1 || rank != 0)
+         {
+             #pragma omp for schedule(static)
+            for(long i=seq_S; i<N*progeny; i++)
+            {
+               part_sum[i] -= temp_boltz[idx[seq_S]];
+            } 
+         }
+         #pragma omp barrier
         }// end while
-	
+   
 //////////////////////////////
 // END Part 2
 /////////////////////////////
@@ -838,102 +838,102 @@ int main (int argc, char *argv[]) {
 ///////////////////////////////
 // PART 2 Introducing Mutation
 ///////////////////////////////
-	#pragma omp single
-	{
-		// make sure smaller numbers don't get rounded off
-		sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
+   #pragma omp single
+   {
+      // make sure smaller numbers don't get rounded off
+      sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
         part_sum[0] = temp_boltz[idx[0]];
         for(long i=1; i<N*progeny; i++)
-		{
+      {
             part_sum[i] = part_sum[i-1] + temp_boltz[idx[i]];
         }
-		// pick sequences that survive to the final population based on their fitness
+      // pick sequences that survive to the final population based on their fitness
         Z = 0;
         Z_eff = 0;
-	}
+   }
 
-	//for(int k = 0; k < N; k+=size)
-	while(pos < N)
-	{
-		int pos_L = pos + rank;
-		double ranNum1 = u(r)*safeUnity*Ztemp;
-		long seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
-		int active_threads = N > pos + (size - 1) ? size : N - pos;
-		seq_arr[rank] = seq;
-  		#pragma omp barrier
-		#pragma omp single
-		{
-			int dup_idx;
-			while( (dup_idx = check_duplicate(seq_arr, active_threads)) != 0)
-			{
-				ranNum1 = u(r)*safeUnity*Ztemp;
-				seq_arr[dup_idx] = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
-			}
-		} 
-		seq = seq_arr[rank];
-		while(!occupied[idx[seq]])
-		{
-			seq++;
-		}
-		if(seq >= N*progeny)
-		{
-			cout << "Error in find, seq = " << seq << ", ranNum1 = " << ranNum1 << ", Ztemp = " << Ztemp << endl;
-		}
-		if(pos_L < N)
-		{
-			for(long j=0; j<m; j++)
-			{
-				population[pos_L][j]=temp_pop[idx[seq]][j];
-			}
-			// prime T cells
-			double penalty = 0;
-			for(long j=0; j<n_epitope; j++)
-			{
-				int index = 0;
-				int count = 0;
-				for(long position=epi_start[j]; position<epi_end[j]; position++)
-				{
-					index += place_value[j][count]*population[pos_L][position];
-					count++;
-				}
-				double num_Ecells = 0;
-				for(long t=1; t<=rep_lim; t++)
-				{
-					num_Ecells += Tcells[j][t];
-				} 
-				penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
-				#pragma omp atomic
-					n_WTepitopes[j][index]+=1.0;
-			}
-			boltzfac[pos_L] = exp(-(energy(population[pos_L],m,h,J))/T); 
-			boltzfac_eff[pos_L] = boltzfac[pos_L]*exp(-penalty/T); 
-			
-			#pragma omp critical
-			{
-				Z += boltzfac[pos_L]; 
-				Z_eff += boltzfac_eff[pos_L]; 
-				Ztemp -= temp_boltz[idx[seq]];
-			}
-			
-			occupied[idx[seq]] = false;
-		}
-		
- 		for(int j = 0; j < active_threads; j++)
-		{
-			#pragma omp barrier
-			#pragma omp for schedule(static)
-			for(long i=seq_arr[j]; i<N*progeny; i++)
-			{
-				part_sum[i] -= temp_boltz[idx[seq_arr[j]]];
-			}
-		}
+   //for(int k = 0; k < N; k+=size)
+   while(pos < N)
+   {
+      int pos_L = pos + rank;
+      double ranNum1 = u(r)*safeUnity*Ztemp;
+      long seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
+      int active_threads = N > pos + (size - 1) ? size : N - pos;
+      seq_arr[rank] = seq;
+        #pragma omp barrier
+      #pragma omp single
+      {
+         int dup_idx;
+         while( (dup_idx = check_duplicate(seq_arr, active_threads)) != 0)
+         {
+            ranNum1 = u(r)*safeUnity*Ztemp;
+            seq_arr[dup_idx] = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
+         }
+      } 
+      seq = seq_arr[rank];
+      while(!occupied[idx[seq]])
+      {
+         seq++;
+      }
+      if(seq >= N*progeny)
+      {
+         cout << "Error in find, seq = " << seq << ", ranNum1 = " << ranNum1 << ", Ztemp = " << Ztemp << endl;
+      }
+      if(pos_L < N)
+      {
+         for(long j=0; j<m; j++)
+         {
+            population[pos_L][j]=temp_pop[idx[seq]][j];
+         }
+         // prime T cells
+         double penalty = 0;
+         for(long j=0; j<n_epitope; j++)
+         {
+            int index = 0;
+            int count = 0;
+            for(long position=epi_start[j]; position<epi_end[j]; position++)
+            {
+               index += place_value[j][count]*population[pos_L][position];
+               count++;
+            }
+            double num_Ecells = 0;
+            for(long t=1; t<=rep_lim; t++)
+            {
+               num_Ecells += Tcells[j][t];
+            } 
+            penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
+            #pragma omp atomic
+               n_WTepitopes[j][index]+=1.0;
+         }
+         boltzfac[pos_L] = exp(-(energy(population[pos_L],m,h,J))/T); 
+         boltzfac_eff[pos_L] = boltzfac[pos_L]*exp(-penalty/T); 
+         
+         #pragma omp critical
+         {
+            Z += boltzfac[pos_L]; 
+            Z_eff += boltzfac_eff[pos_L]; 
+            Ztemp -= temp_boltz[idx[seq]];
+         }
+         
+         occupied[idx[seq]] = false;
+      }
+      
+       for(int j = 0; j < active_threads; j++)
+      {
+         #pragma omp barrier
+         #pragma omp for schedule(static)
+         for(long i=seq_arr[j]; i<N*progeny; i++)
+         {
+            part_sum[i] -= temp_boltz[idx[seq_arr[j]]];
+         }
+      }
 
-		#pragma omp single
-		{
-			pos += size;
-		}
-	}
-	
+      #pragma omp single
+      {
+         pos += size;
+      }
+   }
+   
 //////////////////////////////
 // END Part 2
 /////////////////////////////
@@ -946,123 +946,123 @@ int main (int argc, char *argv[]) {
 ///////////////////////////////
 
 
-	// occupied here will denote the sequences that have already been removed from the array
-	#pragma omp for schedule(static)
-	for(int i = 0; i < N * progeny; i++)
-	{
-		part_sum_used[i] = false;
-		occupied[i] = false;
-	}
-		
-	
-	#pragma omp single
-	{
-		// make sure smaller numbers don't get rounded off
-		sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
+   // occupied here will denote the sequences that have already been removed from the array
+   #pragma omp for schedule(static)
+   for(int i = 0; i < N * progeny; i++)
+   {
+      part_sum_used[i] = false;
+      occupied[i] = false;
+   }
+      
+   
+   #pragma omp single
+   {
+      // make sure smaller numbers don't get rounded off
+      sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
         part_sum[0] = temp_boltz[idx[0]];
         for(long i=1; i<N*progeny; i++)
-		{
+      {
             part_sum[i] = part_sum[i-1] + temp_boltz[idx[i]];
         }
-		// pick sequences that survive to the final population based on their fitness
+      // pick sequences that survive to the final population based on their fitness
         Z = 0;
         Z_eff = 0;
-		
-		// picking all sequences in parallel
- 		for(int i = 0; i < N; i++)
-		{
-			double ranNum1 = u(r)*safeUnity*Ztemp;
-			int seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
-			int part_count = 0;
-			
-			// search for a different seq if it's used
-			while(part_sum_used[seq] == true)
-			{
-				// escape condition: remove all used seq from array
-				if(part_count > 1000)
-				{
-					for(int j = 0; j < N*progeny; j++)
-					{
-						if(part_sum_used[j] == true && occupied[idx[j]] == false)
-						{
-							for(int k = j; k < N*progeny; k++)
-							{
-								part_sum[k] -= temp_boltz[idx[j]];
-							}
-							Ztemp -= temp_boltz[idx[j]];
-							occupied[idx[j]] = true;
-						}
-					}
-					part_count = 0;
-				}
-				//printf("seq: %d\n", seq);
-				ranNum1 = u(r)*safeUnity*Ztemp;
-				seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));				
-				part_count++;
-			}
-			seq_arr[i] = seq;
-			part_sum_used[seq] = true;
-			if(seq >= N*progeny)
-			{
-				printf("error: seq = %d\n", seq);
-			}
-		}
-		
-/* 		int im = 0;
-		for(int in = N * progeny - N; in < N * progeny; in++)
-		{
-			int seq = rand() % in;
-			if(part_sum_used[seq] == true)
-				seq = in;
-			part_sum_used[seq] = true;
-			seq_arr[im] = seq;
-			im++;
-		}  */
-	}
-	
-	
-	
-  	#pragma omp for schedule(static) reduction(+: Z, Z_eff, Ztemp)
-	for(int pos_L = 0; pos_L < N; pos_L++)
-	{
-		int seq = seq_arr[pos_L];
-		for(long j=0; j<m; j++)
-		{
-			population[pos_L][j]=temp_pop[idx[seq]][j];
-		}
-		// prime T cells
-		double penalty = 0;
-		for(long j=0; j<n_epitope; j++)
-		{
-			int index = 0;
-			int count = 0;
-			for(long position=epi_start[j]; position<epi_end[j]; position++)
-			{
-				index += place_value[j][count]*population[pos_L][position];
-				count++;
-			}
-			double num_Ecells = 0;
-			for(long t=1; t<=rep_lim; t++)
-			{
-				num_Ecells += Tcells[j][t];
-			} 
-			penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
-			#pragma omp atomic
-				n_WTepitopes[j][index]+=1.0;
-		}
-		boltzfac[pos_L] = exp(-(energy(population[pos_L],m,h,J))/T); 
-		boltzfac_eff[pos_L] = boltzfac[pos_L]*exp(-penalty/T); 
-		
-		Z += boltzfac[pos_L]; 
-		Z_eff += boltzfac_eff[pos_L];
-		// only subtract from Ztemp if it hasn't been subtracted yet
-		if(occupied[idx[seq]] == false)
-			Ztemp += -temp_boltz[idx[seq]]; 
-		
-		occupied[idx[seq]] = true;
-	}  
-	
-	#pragma omp barrier
+      
+      // picking all sequences in parallel
+       for(int i = 0; i < N; i++)
+      {
+         double ranNum1 = u(r)*safeUnity*Ztemp;
+         int seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));
+         int part_count = 0;
+         
+         // search for a different seq if it's used
+         while(part_sum_used[seq] == true)
+         {
+            // escape condition: remove all used seq from array
+            if(part_count > 1000)
+            {
+               for(int j = 0; j < N*progeny; j++)
+               {
+                  if(part_sum_used[j] == true && occupied[idx[j]] == false)
+                  {
+                     for(int k = j; k < N*progeny; k++)
+                     {
+                        part_sum[k] -= temp_boltz[idx[j]];
+                     }
+                     Ztemp -= temp_boltz[idx[j]];
+                     occupied[idx[j]] = true;
+                  }
+               }
+               part_count = 0;
+            }
+            //printf("seq: %d\n", seq);
+            ranNum1 = u(r)*safeUnity*Ztemp;
+            seq = std::distance(part_sum, std::lower_bound(part_sum, part_sum + N*progeny,ranNum1));            
+            part_count++;
+         }
+         seq_arr[i] = seq;
+         part_sum_used[seq] = true;
+         if(seq >= N*progeny)
+         {
+            printf("error: seq = %d\n", seq);
+         }
+      }
+      
+/*       int im = 0;
+      for(int in = N * progeny - N; in < N * progeny; in++)
+      {
+         int seq = rand() % in;
+         if(part_sum_used[seq] == true)
+            seq = in;
+         part_sum_used[seq] = true;
+         seq_arr[im] = seq;
+         im++;
+      }  */
+   }
+   
+   
+   
+     #pragma omp for schedule(static) reduction(+: Z, Z_eff, Ztemp)
+   for(int pos_L = 0; pos_L < N; pos_L++)
+   {
+      int seq = seq_arr[pos_L];
+      for(long j=0; j<m; j++)
+      {
+         population[pos_L][j]=temp_pop[idx[seq]][j];
+      }
+      // prime T cells
+      double penalty = 0;
+      for(long j=0; j<n_epitope; j++)
+      {
+         int index = 0;
+         int count = 0;
+         for(long position=epi_start[j]; position<epi_end[j]; position++)
+         {
+            index += place_value[j][count]*population[pos_L][position];
+            count++;
+         }
+         double num_Ecells = 0;
+         for(long t=1; t<=rep_lim; t++)
+         {
+            num_Ecells += Tcells[j][t];
+         } 
+         penalty += T_penalty*chi[j][index]*num_Ecells/n_T;
+         #pragma omp atomic
+            n_WTepitopes[j][index]+=1.0;
+      }
+      boltzfac[pos_L] = exp(-(energy(population[pos_L],m,h,J))/T); 
+      boltzfac_eff[pos_L] = boltzfac[pos_L]*exp(-penalty/T); 
+      
+      Z += boltzfac[pos_L]; 
+      Z_eff += boltzfac_eff[pos_L];
+      // only subtract from Ztemp if it hasn't been subtracted yet
+      if(occupied[idx[seq]] == false)
+         Ztemp += -temp_boltz[idx[seq]]; 
+      
+      occupied[idx[seq]] = true;
+   }  
+   
+   #pragma omp barrier
 
 
 //////////////////////////////
@@ -1078,23 +1078,25 @@ int main (int argc, char *argv[]) {
         }      
      }
 
+#pragma omp single
+{
      double totalT = 0;
      for(long i=0; i<n_epitope; i++)
-	 {
+    {
         Ichi = chiI[i];
-		if(rep_lim < 2)
-		{ // effector generations equal 1
+      if(rep_lim < 2)
+      { // effector generations equal 1
             integrate(int_Tcell_1, Tcells[i], 0.0, 1.0, 0.05);
         } 
-		else if(rep_lim < 3)
-		{ // effector generations equal 2
+      else if(rep_lim < 3)
+      { // effector generations equal 2
             integrate(int_Tcell_2, Tcells[i], 0.0, 1.0, 0.05);
         } 
-		else 
-		{  // effector generations 3 or more
+      else 
+      {  // effector generations 3 or more
             integrate(int_Tcell_N, Tcells[i], 0.0, 1.0, 0.05);
         }
-	// add up effector cells for T-cell cap
+   // add up effector cells for T-cell cap
         for(long j=1; j<=rep_lim; j++){
                 totalT +=  Tcells[i][j];
         }
@@ -1108,8 +1110,8 @@ int main (int argc, char *argv[]) {
             }
         }
     }
-
-        
+}
+       
     #pragma omp barrier
     #pragma omp single
     {
@@ -1119,36 +1121,36 @@ int main (int argc, char *argv[]) {
         
     // sample block
     if (!(cycle % sample_mod) && cycle > burnin) 
-	{
+   {
     for(long k=0; k<N; k++)
-	{
+   {
         for(long i=begin_m; i<end_m; i++) 
-		{
+      {
             n1[i][population[k][i]] += 1.0;
             for(long j=i+1; j<m; j++) 
-			{
+         {
                 n2[i][j][population[k][i]][population[k][j]] += 1.0;
-	        }
-	    }
-	}
+           }
+       }
+   }
     #pragma omp single
     {
             n_samples += N;
-	}
+   }
     }
         
     #pragma omp barrier
     #pragma omp single
     {
-	// print block
-	if (cycle % print_mod == 0 && cycle > 0) {
-	    cout << "  Completed cycle " << std::setw(5) << cycle << " of " << std::setw(5) << n_cycles << "\n";
-	}
-		
-		
-	// write block
+   // print block
+   if (cycle % print_mod == 0 && cycle > 0) {
+       cout << "  Completed cycle " << std::setw(5) << cycle << " of " << std::setw(5) << n_cycles << "\n";
+   }
+      
+      
+   // write block
         if (cycle % write_mod == 0 && cycle > burnin) 
-		{
+      {
             fwrite(&cycle, sizeof(long), 1, fout_pop_stats);
             fwrite(&pos, sizeof(long), 1, fout_pop_stats);
             fwrite(&Z, sizeof(double), 1, fout_pop_stats);
@@ -1160,9 +1162,9 @@ int main (int argc, char *argv[]) {
                      n1[i][p] = n1[i][p]/n_samples;
                      fwrite(&n1[i][p], sizeof(double), 1, fout_P1_traj);
                      n1[i][p] = n1[i][p]*n_samples;
-	        }
-	    }
-			
+           }
+       }
+         
             fwrite(&cycle, sizeof(long), 1, fout_P2_traj);
             for(long i=0; i<m; i++) {
                 for(long j=i+1; j<m; j++) {
@@ -1171,10 +1173,10 @@ int main (int argc, char *argv[]) {
                             n2[i][j][p][q] = n2[i][j][p][q]/n_samples;
                             fwrite(&n2[i][j][p][q], sizeof(double), 1, fout_P2_traj);
                             n2[i][j][p][q] = n2[i][j][p][q]*n_samples;
-			}
-		    }
-		}
-	    }
+         }
+          }
+      }
+       }
 
             fwrite(&cycle, sizeof(long), 1, fout_Tcell_traj);
             for(long i=0; i<n_epitope; i++){
@@ -1187,61 +1189,61 @@ int main (int argc, char *argv[]) {
                 fwrite(&Tcells[i][rep_lim+1], sizeof(double), 1, fout_Tcell_traj);
                 fwrite(&chiI[i], sizeof(double), 1, fout_Tcell_traj);
             }
-			
+         
             fwrite(&cycle, sizeof(long), 1, fout_MC_seqs);
-	    for(long k=0; k<N; k++){
+       for(long k=0; k<N; k++){
                 for(long i=0; i<m; i++) {
                     fwrite(&resIdx[i][population[k][i]], sizeof(int8_t), 1, fout_MC_seqs);
-	     	}
-	    }
-	}
+           }
+       }
+   }
         } // end #pragma omp single
         #pragma omp barrier
     } // end main loop
     } // end #pragma omp parallel
     cout << "DONE!" << endl << endl;
 
-	// free memory
-	delete []idx;
-	delete []part_sum;
-	delete []boltzfac_eff;
-	delete []boltzfac;
-	delete []pop_init;
-	delete []occupied;
-//	delete []seq_arr;
-	delete []part_sum_used;
-	
+   // free memory
+   delete []idx;
+   delete []part_sum;
+   delete []boltzfac_eff;
+   delete []boltzfac;
+   delete []pop_init;
+   delete []occupied;
+//   delete []seq_arr;
+   delete []part_sum_used;
+   
     // closing traj files
     fclose(fout_P1_traj);
     fclose(fout_P2_traj);
     fclose(fout_MC_seqs);
     fclose(fout_pop_stats);
     fclose(fout_Tcell_traj);
-	
-	
+   
+   
     // reporting final probabilities
     FILE* fout_P1;
     {
-	std::string fstr_P1="./P1_model.dat";
+   std::string fstr_P1="./P1_model.dat";
         fout_P1 = fopen(fstr_P1.c_str(),"wb");
         if (fout_P1==NULL) {
-	    cerr << "Cannot open output file " << fstr_P1 << " in the current directory; aborting." << endl;
-	    exit(-1);
-	}
+       cerr << "Cannot open output file " << fstr_P1 << " in the current directory; aborting." << endl;
+       exit(-1);
+   }
         int32_t sizes [1];
         sizes[0] = sizeof(double);
         fwrite(sizes,4,1,fout_P1);    
     } 
-	
+   
 
     FILE* fout_P2;
     {
-	std::string fstr_P2="./P2_model.dat";
+   std::string fstr_P2="./P2_model.dat";
         fout_P2 = fopen(fstr_P2.c_str(),"wb");
         if (fout_P2==NULL) {
-	    cerr << "Cannot open output file " << fstr_P2 << " in the current directory; aborting." << endl;
-	    exit(-1);
-	}
+       cerr << "Cannot open output file " << fstr_P2 << " in the current directory; aborting." << endl;
+       exit(-1);
+   }
         int32_t sizes [1];
         sizes[0] = sizeof(double);
         fwrite(sizes,4,1,fout_P2);    
@@ -1252,29 +1254,29 @@ int main (int argc, char *argv[]) {
             n1[i][population[k][i]] += 1.0;
             for(long j=i+1; j<m; j++) {
                 n2[i][j][population[k][i]][population[k][j]] += 1.0;
-	    }
-	}
+       }
+   }
     }
     n_samples += N;
-	
+   
     for(long i=0; i<m; i++) {
         for(long p=0; p<nRes[i]; p++) {
               n1[i][p] = n1[i][p]/n_samples;
               fwrite(&n1[i][p], sizeof(double), 1, fout_P1);
-	}
+   }
     }
-		
+      
     for(long i=0; i<m; i++) {
         for(long j=i+1; j<m; j++) {
             for(long q=0; q<nRes[j]; q++) {
                 for(long p=0; p<nRes[i]; p++) {
                     n2[i][j][p][q] = n2[i][j][p][q]/n_samples;
                     fwrite(&n2[i][j][p][q], sizeof(double), 1, fout_P2);
-		}
-	    }
-	}
+      }
+       }
+   }
     }
-	
+   
     fclose(fout_P1);
     fclose(fout_P2);
 
@@ -1283,26 +1285,26 @@ int main (int argc, char *argv[]) {
     // write unsorted
     seq_file = fopen("seq_unsorted.txt", "w");
     for(long i =0; i < N; i++)
-    	fprintf(seq_file, "%d\n", seq_arr[i]);
+       fprintf(seq_file, "%d\n", seq_arr[i]);
     fclose(seq_file);
 
     // write sorted
     sort(seq_arr, seq_arr + N);
     seq_file = fopen("seq_sorted.txt", "w");
     for(long i =0; i < N; i++)
-    	fprintf(seq_file, "%d\n", seq_arr[i]);
+       fprintf(seq_file, "%d\n", seq_arr[i]);
     fclose(seq_file);
 #endif // check sequence
     delete []seq_arr;
 
 
-	
+   
     // stop timer
     double wall_stop = get_wall_time();
     double cpu_stop  = get_cpu_time();
-	
+   
     printf("Wall Time = %e s\n",wall_stop - wall_start);
     printf("CPU Time  = %e s\n",cpu_stop - cpu_start);
-	
+   
     return 0;
 }
