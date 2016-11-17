@@ -3,10 +3,10 @@ USE_ACC = n #must use PGI compiler
 USE_CUDA = n
 PROFILE = n
 COMPILER = GNU
-DEBUG = n
+DEBUG = y
 UNIT_TESTING = n
-CXXFLAGS = -std=c++11 -I./ -I/home/ccheng32/project/lib/include
-NVFLAGS  = -O3 -arch=sm_35 -I./ -I/home/ccheng32/project/lib/include
+CXXFLAGS = -std=c++11 -I./ 
+NVFLAGS  = -O3 -arch=sm_35 
 
 ifeq ($(USE_OMP),y)
 	ifeq ($(COMPILER), GNU)

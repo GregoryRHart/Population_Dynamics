@@ -145,8 +145,8 @@ int load_epitopes(std::string fstr, std::vector<long>& epitope_start, std::vecto
 	     
 	     int j=0;
 	     while(std::getline(epi_in,readStr)){
-	          int index = 0;
-	          readStrStrm.clear();
+	        int index = 0;
+	        readStrStrm.clear();
      		readStrStrm.str(readStr);
      		for(int k=0; k<epitope_end[i]-epitope_start[i]; k++){
      		     if(!(readStrStrm >> word)){
@@ -390,12 +390,9 @@ int load_X2(std::string fstr, std::vector<long>& nRes, std::vector< std::vector<
 
 double energy(std::vector<int8_t>& sequence, long m, std::vector< std::vector<double> >& h, std::vector< std::vector< std::vector< std::vector<double> > > >& J){
     	double E=0;
-		
-    	for	(long i=0; i<m; i++) 
-		{
+    	for	(long i=0; i<m; i++){
           E = E + h[i][sequence[i]];
-		  for (long j=i+1; j<m; j++)
-		  {
+		  for (long j=i+1; j<m; j++) {
 	     	E = E + J[i][j][sequence[i]][sequence[j]];
           }
 		}

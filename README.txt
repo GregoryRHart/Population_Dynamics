@@ -3,6 +3,7 @@
 --> sometimes the system is smart enough to know where the libs are and you can remove the -L commands altogether, try that first
 --> you can probably get openmp from Synaptics package manager; trng files are included in the repository
 --> I'm afraid that getting the code linked to libraries can be a pain, let me know if you have big problems
+-> This branch of the code uses the Wright-Fisher model with variable population size
 
 -> To compile:
 make clean
