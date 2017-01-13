@@ -660,7 +660,8 @@ int main (int argc, char *argv[]) {
     const int rank = 0;
     #endif
 	
-    if(rank == 0) {
+    if(rank == 0) 
+    {
         printf("OPENMP: %d threads\n", size);
         fflush(stdout);
     }
@@ -685,11 +686,13 @@ int main (int argc, char *argv[]) {
             Ztemp = 0.0;
             E_ave = 0.0;
             E_eff_ave = 0.0;
-            for(long i=0; i<n_epitope; i++){
-               for(long j=0; j<(n_WTepitopes[i]).size(); j++){
+            for(long i=0; i<n_epitope; i++)
+            {
+               for(long j=0; j<(n_WTepitopes[i]).size(); j++)
+               {
                    n_WTepitopes[i][j] = 0;
                }
-	    }
+	        }
         }
         #pragma omp barrier
 
@@ -704,26 +707,32 @@ int main (int argc, char *argv[]) {
         
 		
         // Have every sequence in the population produce offspring equal to the value of progeny. Mutating each offspring sequence as it is copied
-        for(long k=0; k<progeny; k++){       // loop over the number of progeny
-            for(long i=begin; i<end; i++){   // loop over the processor's part of the population
+        for(long k=0; k<progeny; k++) // loop over the number of progeny
+        {   
+            for(long i=begin; i<end; i++) // loop over the processor's part of the population
+            {   
                 ranInt1 = IntGenerator(r);   // number of mution for the parent sequence;
-                for(long j=0; j<m; j++){     // copy parent sequence
+                for(long j=0; j<m; j++) // copy parent sequence
+                {   
                     temp_pop[i+(N*k)][j] = population[i][j];
                 }
-                for(long j=0; j<ranInt1; j++){ // introduce mutations
+                for(long j=0; j<ranInt1; j++) // introduce mutations
+                {   
                     ranNum1 = u(r)*safeUnity;
-             	    site = (long)floor((double)ranNum1 * (double)m);
+             	     site = (long)floor((double)ranNum1 * (double)m);
                     ranNum1 = u(r)*safeUnity;
                     res = (long)floor((double)ranNum1 * (double)(nRes[site]-1));
-                    if (temp_pop[i+(N*k)][site] <= res) {
-     	     		    res++;
+                    if (temp_pop[i+(N*k)][site] <= res) 
+                    {
+     	     		         res++;
           	        }
                     temp_pop[i+(N*k)][site] = res;
                 }
 				
                 idx[i+(N*k)] = i+(N*k);
                 double penalty = 0;
-                for(long j=0; j<n_epitope; j++){ // calculate T-cell susceptibility
+                for(long j=0; j<n_epitope; j++) // calculate T-cell susceptibility
+                {    
                     int index = 0;
                     int count = 0;
                     for(long position=epi_start[j]; position<epi_end[j]; position++){
@@ -1014,80 +1023,82 @@ int main (int argc, char *argv[]) {
 // PART 2 Introducing Mutation
 ///////////////////////////////
 
-        #pragma omp single
-	{
-	    // make sure smaller numbers don't get rounded off
-	    sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
-	    // pick sequences that survive to the final population based on their fitness
-            Z = 0.0;
-            Z_eff = 0.0;
-            E_ave = 0.0;
-            E_eff_ave = 0.0;
-            seq_S = 0;
-        }
+    #pragma omp single
+    {
+        // initialize
+        Z = 0.0;
+        Z_eff = 0.0;
+        E_ave = 0.0;
+        E_eff_ave = 0.0;
+        seq_S = 0;
+    }
+    
+    // algorithm A, select numbers with largest keys
+    #pragma omp for schedule(static)
+    for(long i = 0; i < N*progeny; i++)	
+    {
+       key[i] = (1.0 / temp_boltz[idx[i]]) * std::log(u(r)); // take log for accuracy
+       key_l[i] = key[i];
+    }
+    #pragma omp barrier
+    
+    // choose N largest elements
+    #pragma omp single
+    {
+       std::nth_element(key, key + N, key + N*progeny, std::greater<double>());
 
-        // algorithm A, select numbers with largest keys
-        #pragma omp for schedule(static)
-        for(long i = 0; i < N*progeny; i++)	
+       for(long i = 0; i < N*progeny; i++)
+       {
+          if(key_l[i] > key[N])
+          {
+             seq_arr[seq_S] = i;
+             seq_S++;
+          }
+       }
+       printf("%d matched bigger than %e\n", seq_S, key[N]);
+    }
+    
+    #pragma omp for schedule(dynamic) reduction(+: E_ave, E_eff_ave, Z, Z_eff)
+    for(int pos_L = 0; pos_L < N; pos_L++)
+    {
+        int seq = seq_arr[pos_L];
+        for(long j=0; j<m; j++)	
         {
-           key[i] = pow(u(r), 1 / (temp_boltz[idx[i]]));
-           key_l[i] = key[i];
+            population[pos_L][j]=temp_pop[idx[seq]][j];
         }
-
-        // choose N largest elements
-        #pragma omp single
+        // prime T cells
+        double penalty = 0;
+        for(long j=0; j<n_epitope; j++)
         {
-           std::nth_element(key, key + N, key + N*progeny, std::greater<double>());
+            int index = 0;
+            int count = 0;
+            for(long position=epi_start[j]; position<epi_end[j]; position++)
+            {
+        		    index += place_value[j][count]*population[pos_L][position];
+        		    count++;
+        	   }
+        	   double num_Ecells = 0;
+        	   for(long t=1; t<=rep_lim; t++)
+            {
+        		    num_Ecells += Tcells[j][t];
+        	   }    
+        	   penalty += T_penalty*chi[j][index]*num_Ecells;
+        	   #pragma omp atomic
+        	       n_WTepitopes[j][index]+=1.0;
+        }
+        E[pos_L] = energy(population[pos_L],m,h,J); 
+        E_eff[pos_L] = E[pos_L] + penalty; 
+        boltzfac[pos_L] = exp(-E[pos_L]/T); 
+        boltzfac_eff[pos_L] = exp(-E_eff[pos_L]/T); 
         
-           for(long i = 0; i < N*progeny; i++)
-           {
-              if(key_l[i] > key[N])
-              {
-                 seq_arr[seq_S] = i;
-                 seq_S++;
-              }
-           }
-        }
-
-        #pragma omp single
-          printf("%d matched\n", seq_S);
-
-  	#pragma omp for schedule(static) reduction(+: E_ave, E_eff_ave, Z, Z_eff)
-	for(int pos_L = 0; pos_L < N; pos_L++){
-		int seq = seq_arr[pos_L];
-		for(long j=0; j<m; j++)	{
-			population[pos_L][j]=temp_pop[idx[seq]][j];
-		}
-		// prime T cells
-		double penalty = 0;
-		for(long j=0; j<n_epitope; j++){
-			int index = 0;
-			int count = 0;
-			for(long position=epi_start[j]; position<epi_end[j]; position++){
-				index += place_value[j][count]*population[pos_L][position];
-				count++;
-			}
-			double num_Ecells = 0;
-			for(long t=1; t<=rep_lim; t++){
-				num_Ecells += Tcells[j][t];
-			} 
-			penalty += T_penalty*chi[j][index]*num_Ecells;
-			#pragma omp atomic
-			    n_WTepitopes[j][index]+=1.0;
-		}
-		E[pos_L] = energy(population[pos_L],m,h,J); 
-		E_eff[pos_L] = E[pos_L] + penalty; 
-		boltzfac[pos_L] = exp(-E[pos_L]/T); 
-		boltzfac_eff[pos_L] = exp(-E_eff[pos_L]/T); 
-		
-		E_ave += E[pos_L]; 
-		E_eff_ave += E_eff[pos_L];
-		Z += boltzfac[pos_L]; 
-		Z_eff += boltzfac_eff[pos_L];
-		occupied[idx[seq]] = false;
-	}  
-	
-	#pragma omp barrier
+        E_ave += E[pos_L]; 
+        E_eff_ave += E_eff[pos_L];
+        Z += boltzfac[pos_L]; 
+        Z_eff += boltzfac_eff[pos_L];
+        occupied[idx[seq]] = false;
+    }  
+    
+    #pragma omp barrier
 
 //////////////////////////////
 // END Part 2
