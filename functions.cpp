@@ -8,19 +8,16 @@
  */
 #include "functions.h"
 
-#include <string>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
 #include <iostream>
-#include <stdexcept>
 #include <vector>
 #include <algorithm>
-#include <limits>
 #include <math.h>
-#include <stdlib.h>
 #include <sys/time.h>
+
 
 double get_wall_time(){
     struct timeval time;
@@ -73,11 +70,11 @@ int load_seq(std::string fstr, int seq[], std::vector<long>& nRes, std::vector< 
 	}
 	
 	fin.close();
-	
+		
 	return 0;
 }
 
-int load_epitopes(std::string fstr, std::vector<long>& epitope_start, std::vector<long>& epitope_end, std::vector< std::vector<double> >& chi, long n, std::vector< std::vector<long> >& resIdx, std::vector<long>& nRes) {
+int load_epitopes(std::string fstr, std::vector<long>& epitope_start, std::vector<long>& epitope_end, std::vector< std::vector<double> >& chi, long n, std::vector< std::vector<long> >& resIdx, std::vector<long>& nRes, std::vector<state_type>& Tcells, int rep_lim) {
 
      std::ifstream fin;
 	fin.open(fstr.c_str());
@@ -88,39 +85,65 @@ int load_epitopes(std::string fstr, std::vector<long>& epitope_start, std::vecto
 	
 	std::string epi_file;
 	for(long i=0; i<n; i++) {
-	     if (fin.eof()) {
-			std::cerr << "Prematurely encountered eof in " << fstr << "; aborting." << std::endl;
-			exit(-1);
-		}
+	    if (fin.eof()) {
+	        std::cerr << "Prematurely encountered eof in " << fstr << "; aborting." << std::endl;
+		exit(-1);
+	    }
 		
-	     std::getline(fin, epi_file);
-	     std::ifstream epi_in;
-	     if(epi_file.empty()){
-	          std::cerr << "Not enough lines in " << fstr << "; aborting." << std::endl;
-		     exit(-1);
-	     }
-	     epi_in.open(epi_file.c_str());
-	     if (!epi_in) {
-		     std::cerr << "Cannot open input file " << epi_file << "; aborting." << std::endl;
-		     exit(-1);
-	     }
-	     std::string readStr;
-	     std::getline(epi_in,readStr);
-		std::stringstream readStrStrm(readStr);
-		std::string word;
-		double average = 0;
-		if(readStrStrm >> word){
-		     average = atof(word.c_str());
-		} else {
-		     std::cerr << "Empty line in " << epi_file << "; aborting." << std::endl;
-		     exit(-1);
-		}
-		word = "";
-		readStrStrm >> word;
-		if(!word.empty()){
-		     std::cerr << "Extra characters on the first line of " << epi_file << "; aborting." << std::endl;
-		     exit(-1);
-		}
+	    std::ifstream epi_in;
+	    {
+            std::getline(fin, epi_file);
+	    std::stringstream readStrStrm(epi_file);
+	    std::string word;
+            if(readStrStrm >> word){
+	        epi_in.open(word.c_str());
+                if (!epi_in) {
+	           std::cerr << "Cannot open input file " << epi_file << "; aborting." << std::endl;
+	           exit(-1);
+	        }
+            } else {
+	        std::cerr << "Not enough lines in " << fstr << "; aborting." << std::endl;
+	        exit(-1);
+            }
+            Tcells[i][0] = 200.0;//500;
+            Tcells[i][rep_lim+1] = 0.0;
+            for(long j=1; j<=rep_lim; j++){
+                Tcells[i][j] = 0.0;
+            }
+	    if(readStrStrm >> word){
+	        Tcells[i][0] = atof(word.c_str());
+	    } else {
+	        std::cerr << "Number of cells for epitope " << i << " not given. Using 200.0 Naive, 0.0 Effector, and 0.0 Memory." << std::endl;
+	    }
+	    if(readStrStrm >> word){
+	        Tcells[i][1] = atof(word.c_str());
+	    }
+	    if(readStrStrm >> word){
+	        Tcells[i][rep_lim+1] = atof(word.c_str());
+	    } 
+	    if(readStrStrm >> word) {
+	        std::cerr << "Extra entries for epitope " << i << "; aborting." << std::endl;
+	        exit(-1);
+	    }
+            }
+
+	    std::string readStr;
+	    std::getline(epi_in,readStr);
+            std::stringstream readStrStrm(readStr);
+	    std::string word;
+	    double average = 0;
+	    if(readStrStrm >> word){
+	        average = atof(word.c_str());
+	    } else {
+	        std::cerr << "Empty line in " << epi_file << "; aborting." << std::endl;
+	        exit(-1);
+            }
+	    word = "";
+	    readStrStrm >> word;
+	    if(!word.empty()){
+	        std::cerr << "Extra characters on the first line of " << epi_file << "; aborting." << std::endl;
+	        exit(-1);
+	    }
 		
 	     size_t pos = 0;
 	     pos = epi_file.find_last_of('/');
@@ -390,12 +413,9 @@ int load_X2(std::string fstr, std::vector<long>& nRes, std::vector< std::vector<
 
 double energy(std::vector<int8_t>& sequence, long m, std::vector< std::vector<double> >& h, std::vector< std::vector< std::vector< std::vector<double> > > >& J){
     	double E=0;
-		
-    	for	(long i=0; i<m; i++) 
-		{
+    	for	(long i=0; i<m; i++) {
           E = E + h[i][sequence[i]];
-		  for (long j=i+1; j<m; j++)
-		  {
+          for (long j=i+1; j<m; j++){
 	     	E = E + J[i][j][sequence[i]][sequence[j]];
           }
 		}
@@ -403,8 +423,7 @@ double energy(std::vector<int8_t>& sequence, long m, std::vector< std::vector<do
      return E;
 }
 
-double energy_P(std::vector<int8_t>& sequence, long m, std::vector< std::vector<double> >& h, std::vector< std::vector< std::vector< std::vector<double> > > >& J)
-{
+double energy_P(std::vector<int8_t>& sequence, long m, std::vector< std::vector<double> >& h, std::vector< std::vector< std::vector< std::vector<double> > > >& J){
     	double E=0;
 		
 		#pragma omp parallel shared(E)
@@ -430,8 +449,8 @@ double energy_P(std::vector<int8_t>& sequence, long m, std::vector< std::vector<
 			#pragma omp atomic
 				E += E_P;
 			#pragma omp barrier
-		}
-		
+     }
+               
      return E;
 }
 
@@ -441,9 +460,7 @@ double Tresponse(double affinity, double num_Ecells, double b, long N, double af
      return b*affinity*1.0/(1.0 + exp(-k*(num_Ecells-mid)));
 }
 
-void 
-init_energy_index(int m, int size, std::vector<std::vector<int>> & arr_idx)
-{
+void init_energy_index(int m, int size, std::vector<std::vector<int>> & arr_idx){
 	arr_idx.resize(size);
 	int i = 0;
 	bool rev = true;
@@ -469,9 +486,7 @@ init_energy_index(int m, int size, std::vector<std::vector<int>> & arr_idx)
 	}
 }
 
-int 
-check_duplicate(int* arr, int size)
-{
+int check_duplicate(int* arr, int size){
 	std::sort(arr, arr+size);
 	int prev = arr[0];
 	for(int i = 1; i < size; i++)
