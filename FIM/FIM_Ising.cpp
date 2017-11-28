@@ -75,12 +75,13 @@ int main(int argc, char** argv) {
 
   int32_t fim_dim = M + M * (M - 1) / 2;
   arma::SpMat<double>* fim = new arma::SpMat<double>(fim_dim, fim_dim);
-  int32_t omp_num_threads = omp_get_max_threads();
 
-  std::cout << "threads: " << omp_num_threads << std::endl;
   int32_t max_iter = M * M * M * M;
-
+#ifdef _OPENMP
+  int32_t omp_num_threads = omp_get_max_threads();
+  std::cout << "threads: " << omp_num_threads << std::endl;
 #pragma omp parallel for schedule(dynamic) num_threads(omp_num_threads)
+#endif
   for (int32_t t = 0; t < max_iter; t++) {
     int32_t i = t / (M * M * M);
     int32_t j = (t % (M * M * M)) / (M * M);
