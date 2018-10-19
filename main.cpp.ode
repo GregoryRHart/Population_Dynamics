@@ -42,6 +42,9 @@
 #include <stdlib.h>
 //#include <stdint.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include <trng/yarn2.hpp>
 #include <trng/uniform01_dist.hpp>
@@ -163,9 +166,9 @@ int main (int argc, char *argv[]) {
 	} else if (strcmp(input_name.c_str(),"rate")==0) {
 	    fin_inputs >> rate;
 	    input_cntr++;
-        } else if (strcmp(input_name.c_str(),"progeny")==0) {
-            fin_inputs >> progeny;
-            input_cntr++;
+    } else if (strcmp(input_name.c_str(),"progeny")==0) {
+        fin_inputs >> progeny;
+        input_cntr++;
 	} else if (strcmp(input_name.c_str(),"n_cycles")==0) {
 	    fin_inputs >> n_cycles;
 	    input_cntr++;
@@ -592,7 +595,7 @@ int main (int argc, char *argv[]) {
             fwrite(&resIdx[i][population[k][i]], sizeof(int8_t), 1, fout_MC_seqs);
         }
     }
-	
+
     for(long j=0; j<n_epitope; j++){
         fwrite(&zero, sizeof(long), 1, fout_epi_traj[j]);
         for(long k=0; k<N; k++){
@@ -615,7 +618,7 @@ int main (int argc, char *argv[]) {
 	//		Under this scheme, the fakeres code is identical to its position in resIdx, facilitating rapid lookup of 
 	//		corresponding n1,n2,h,J matrix elements
 	//
-		
+	
     long pos = 0;
     long n_samples = 0;
     double Etemp[rep_lim];
@@ -660,8 +663,7 @@ int main (int argc, char *argv[]) {
     const int rank = 0;
     #endif
 	
-    if(rank == 0) 
-    {
+    if(rank == 0) {
         printf("OPENMP: %d threads\n", size);
         fflush(stdout);
     }
@@ -690,12 +692,12 @@ int main (int argc, char *argv[]) {
                for(long j=0; j<(n_WTepitopes[i]).size(); j++){
                    n_WTepitopes[i][j] = 0;
                }
-	          }
+	    }
         }
         #pragma omp barrier
 
-        int ranInt1 = 0;   // IntGenerator(r)=number of mution for the parent sequence;
-        double ranNum1 = 0;     //=u(r)*safeUnity;   // range [0,1)
+        int ranInt1 = 0;	// IntGenerator(r)=number of mution for the parent sequence;
+        double ranNum1 = 0;     //=u(r)*safeUnity;	// range [0,1)
         long parent = 0;
         long site = 0;
         long res = 0;
@@ -705,28 +707,26 @@ int main (int argc, char *argv[]) {
         
 		
         // Have every sequence in the population produce offspring equal to the value of progeny. Mutating each offspring sequence as it is copied
-        for(long k=0; k<progeny; k++){ // loop over the number of progeny
-            for(long i=begin; i<end; i++){ // loop over the processor's part of the population  
+        for(long k=0; k<progeny; k++){       // loop over the number of progeny
+            for(long i=begin; i<end; i++){   // loop over the processor's part of the population
                 ranInt1 = IntGenerator(r);   // number of mution for the parent sequence;
-                for(long j=0; j<m; j++){ // copy parent sequence
+                for(long j=0; j<m; j++){     // copy parent sequence
                     temp_pop[i+(N*k)][j] = population[i][j];
                 }
                 for(long j=0; j<ranInt1; j++){ // introduce mutations
                     ranNum1 = u(r)*safeUnity;
-             	      site = (long)floor((double)ranNum1 * (double)m);
+             	    site = (long)floor((double)ranNum1 * (double)m);
                     ranNum1 = u(r)*safeUnity;
                     res = (long)floor((double)ranNum1 * (double)(nRes[site]-1));
-                    if (temp_pop[i+(N*k)][site] <= res){ 
-     	     		         res++;
+                    if (temp_pop[i+(N*k)][site] <= res) {
+     	     		    res++;
           	        }
-
                     temp_pop[i+(N*k)][site] = res;
                 }
-            
+				
                 idx[i+(N*k)] = i+(N*k);
                 double penalty = 0;
-
-                for(long j=0; j<n_epitope; j++){ // calculate T-cell susceptibility 
+                for(long j=0; j<n_epitope; j++){ // calculate T-cell susceptibility
                     int index = 0;
                     int count = 0;
                     for(long position=epi_start[j]; position<epi_end[j]; position++){
@@ -749,11 +749,11 @@ int main (int argc, char *argv[]) {
         // combine partition function from each processor
         #pragma omp atomic
             Ztemp += Ztemp_local;
-   
+	
         #pragma omp barrier
-      
+		
 
-#if PARTPARALLEL == 0      
+#if PARTPARALLEL == 0		
         #pragma omp single
         {
             sort(idx, idx+N*progeny, [&temp_boltz](size_t i1, size_t i2){return temp_boltz[i1] < temp_boltz[i2];});
@@ -761,7 +761,7 @@ int main (int argc, char *argv[]) {
             for(long i=1; i<N*progeny; i++){
                 part_sum[i] = part_sum[i-1] + temp_boltz[idx[i]];
             }
-      
+	
             // pick sequences that survive to the final population based on their fitness
             Z = 0.0;
             Z_eff = 0.0;
@@ -770,7 +770,7 @@ int main (int argc, char *argv[]) {
             while(pos < N){
                 ranNum1 = u(r)*safeUnity*part_sum[N*progeny-1];
                 long seq = std::lower_bound(part_sum, part_sum + N*progeny,ranNum1) - part_sum;
-	              seq_arr[pos] = seq;
+	            seq_arr[pos] = seq;
 
                 if(seq >= N*progeny){
                     cout << "Error in find, seq = " << seq << ", ranNum1 = " << ranNum1 << ", Ztemp = " << Ztemp << endl;
@@ -816,7 +816,7 @@ int main (int argc, char *argv[]) {
                     }
                 }
             }
-      
+		
         } // end #pragma omp single
         #pragma omp barrier
 #endif
@@ -1017,83 +1017,76 @@ int main (int argc, char *argv[]) {
 ///////////////////////////////
 // PART 2 Introducing Mutation
 ///////////////////////////////
-
-    #pragma omp single
-    {
+	
+	#pragma omp single
+	{
         // initialize
         Z = 0.0;
         Z_eff = 0.0;
         E_ave = 0.0;
         E_eff_ave = 0.0;
         seq_S = 0;
-    }
-    
+	}
+		
     // algorithm A, select numbers with largest keys
     #pragma omp for schedule(static)
-    for(long i = 0; i < N*progeny; i++)	
-    {
+    for(long i = 0; i < N*progeny; i++)	{
        key[i] = (1.0 / temp_boltz[idx[i]]) * std::log(u(r)); // take log for accuracy
        key_l[i] = key[i];
-    }
+	}
     #pragma omp barrier
-    
+	
     // choose N largest elements
     #pragma omp single
     {
        std::nth_element(key, key + N, key + N*progeny, std::greater<double>());
-
-       for(long i = 0; i < N*progeny; i++)
-       {
-          if(key_l[i] > key[N])
-          {
+	
+       for(long i = 0; i < N*progeny; i++){
+          if(key_l[i] > key[N]){
              seq_arr[seq_S] = i;
              seq_S++;
           }
        }
        printf("%d matched bigger than %e\n", seq_S, key[N]);
     }
-    
+	
     #pragma omp for schedule(dynamic) reduction(+: E_ave, E_eff_ave, Z, Z_eff)
-    for(int pos_L = 0; pos_L < N; pos_L++)
-    {
-        int seq = seq_arr[pos_L];
-        for(long j=0; j<m; j++)	
-        {
-            population[pos_L][j]=temp_pop[idx[seq]][j];
-        }
-        // prime T cells
-        double penalty = 0;
-        for(long j=0; j<n_epitope; j++)
-        {
-            int index = 0;
-            int count = 0;
-            for(long position=epi_start[j]; position<epi_end[j]; position++)
-            {
-        		    index += place_value[j][count]*population[pos_L][position];
-        		    count++;
-        	   }
-        	   double num_Ecells = 0;
-        	   for(long t=1; t<=rep_lim; t++)
-            {
-        		    num_Ecells += Tcells[j][t];
-        	   }    
-        	   penalty += T_penalty*chi[j][index]*num_Ecells;
-        	   #pragma omp atomic
-        	       n_WTepitopes[j][index]+=1.0;
-        }
-        E[pos_L] = energy(population[pos_L],m,h,J); 
-        E_eff[pos_L] = E[pos_L] + penalty; 
-        boltzfac[pos_L] = exp(-E[pos_L]/T); 
-        boltzfac_eff[pos_L] = exp(-E_eff[pos_L]/T); 
-        
-        E_ave += E[pos_L]; 
-        E_eff_ave += E_eff[pos_L];
-        Z += boltzfac[pos_L]; 
-        Z_eff += boltzfac_eff[pos_L];
+    for(int pos_L = 0; pos_L < N; pos_L++){
+		int seq = seq_arr[pos_L];
+		for(long j=0; j<m; j++)	{
+			population[pos_L][j]=temp_pop[idx[seq]][j];
+		}
+		// prime T cells
+		double penalty = 0;
+		for(long j=0; j<n_epitope; j++){
+			int index = 0;
+			int count = 0;
+			for(long position=epi_start[j]; position<epi_end[j]; position++){
+				index += place_value[j][count]*population[pos_L][position];
+				count++;
+			}
+			double num_Ecells = 0;
+			for(long t=1; t<=rep_lim; t++){
+				num_Ecells += Tcells[j][t];
+			} 
+			penalty += T_penalty*chi[j][index]*num_Ecells;
+			#pragma omp atomic
+			    n_WTepitopes[j][index]+=1.0;
+		}
+		E[pos_L] = energy(population[pos_L],m,h,J); 
+		E_eff[pos_L] = E[pos_L] + penalty; 
+		boltzfac[pos_L] = exp(-E[pos_L]/T); 
+		boltzfac_eff[pos_L] = exp(-E_eff[pos_L]/T); 
+		
+		E_ave += E[pos_L]; 
+		E_eff_ave += E_eff[pos_L];
+		Z += boltzfac[pos_L]; 
+		Z_eff += boltzfac_eff[pos_L];
         occupied[idx[seq]] = false;
-    }  
-    
-    #pragma omp barrier
+	}  
+	
+	#pragma omp barrier
+
 
 //////////////////////////////
 // END Part 2
@@ -1113,7 +1106,7 @@ int main (int argc, char *argv[]) {
      double totalT = 0.0;
      for(long i=0; i<n_epitope; i++){
         Ichi = chiI[i];
-	      if(rep_lim < 2){ // effector generations equal 1
+	if(rep_lim < 2){ // effector generations equal 1
             integrate(int_Tcell_1, Tcells[i], 0.0, 7.0, 0.05);
         } else if(rep_lim < 3){ // effector generations equal 2
             integrate(int_Tcell_2, Tcells[i], 0.0, 7.0, 0.05);
@@ -1155,12 +1148,12 @@ int main (int argc, char *argv[]) {
                     n2[i][j][population[k][i]][population[k][j]] += 1.0;
 	            }
 	        }
-	    }
+        }
 
         #pragma omp single
         {
             n_samples += N;
-        }
+	    }
     }
         
     #pragma omp barrier
@@ -1190,9 +1183,9 @@ int main (int argc, char *argv[]) {
                      n1[i][p] = n1[i][p]/n_samples;
                      fwrite(&n1[i][p], sizeof(double), 1, fout_P1_traj);
                      n1[i][p] = n1[i][p]*n_samples;
-           }
-       }
-         
+	            }
+	        }
+			
             fwrite(&cycle, sizeof(long), 1, fout_P2_traj);
             for(long i=0; i<m; i++) {
                 for(long j=i+1; j<m; j++) {
@@ -1201,13 +1194,13 @@ int main (int argc, char *argv[]) {
                             n2[i][j][p][q] = n2[i][j][p][q]/n_samples;
                             fwrite(&n2[i][j][p][q], sizeof(double), 1, fout_P2_traj);
                             n2[i][j][p][q] = n2[i][j][p][q]*n_samples;
-         }
-          }
-      }
-       }
+			}
+		    }
+		}
+	    }
 
-         fwrite(&cycle, sizeof(long), 1, fout_Tcell_traj);
-         for(long i=0; i<n_epitope; i++){
+        fwrite(&cycle, sizeof(long), 1, fout_Tcell_traj);
+        for(long i=0; i<n_epitope; i++){
              double Etotal = 0;
              fwrite(&Tcells[i][0], sizeof(double), 1, fout_Tcell_traj);
              for(long j=1; j<=rep_lim; j++){
@@ -1216,13 +1209,13 @@ int main (int argc, char *argv[]) {
              fwrite(&Etotal, sizeof(double), 1, fout_Tcell_traj);
              fwrite(&Tcells[i][rep_lim+1], sizeof(double), 1, fout_Tcell_traj);
              fwrite(&chiI[i], sizeof(double), 1, fout_Tcell_traj);
-         }
+        }
 			
-         fwrite(&cycle, sizeof(long), 1, fout_MC_seqs);
+        fwrite(&cycle, sizeof(long), 1, fout_MC_seqs);
 	    for(long k=0; k<N; k++){
              for(long i=0; i<m; i++) {
                 fwrite(&resIdx[i][population[k][i]], sizeof(int8_t), 1, fout_MC_seqs);
-	        }
+            }
 	    }
 
          for(long j=0; j<n_epitope; j++){
@@ -1240,8 +1233,8 @@ int main (int argc, char *argv[]) {
          fwrite(boltzfac, sizeof(double), N, fout_fitness);
          fwrite(boltzfac_eff, sizeof(double), N, fout_fitness);
 	}
-     } // end #pragma omp single
-     #pragma omp barrier
+    } // end #pragma omp single
+    #pragma omp barrier
     } // end main loop
     } // end #pragma omp parallel
     cout << "DONE!" << endl << endl;
@@ -1254,8 +1247,8 @@ int main (int argc, char *argv[]) {
     delete[] E_eff;
     delete[] idx;
     delete[] occupied;
-//  delete []seq_arr;
-    delete []part_sum_used;
+//	delete []seq_arr;
+	delete []part_sum_used;
     delete[] key;
     delete[] key_l;
 	
@@ -1270,30 +1263,30 @@ int main (int argc, char *argv[]) {
         fclose(fout_epi_traj[i]);
     }
 	
-
+	
     // reporting final probabilities
     FILE* fout_P1;
     {
-        std::string fstr_P1="./P1_model.dat";
+	std::string fstr_P1="./P1_model.dat";
         fout_P1 = fopen(fstr_P1.c_str(),"wb");
         if (fout_P1==NULL) {
-            cerr << "Cannot open output file " << fstr_P1 << " in the current directory; aborting." << endl;
-            exit(-1);
-        }
+	    cerr << "Cannot open output file " << fstr_P1 << " in the current directory; aborting." << endl;
+	    exit(-1);
+	}
         int32_t sizes [1];
         sizes[0] = sizeof(double);
         fwrite(sizes,4,1,fout_P1);    
     } 
-   
+	
 
     FILE* fout_P2;
     {
-        std::string fstr_P2="./P2_model.dat";
+	std::string fstr_P2="./P2_model.dat";
         fout_P2 = fopen(fstr_P2.c_str(),"wb");
         if (fout_P2==NULL) {
-       cerr << "Cannot open output file " << fstr_P2 << " in the current directory; aborting." << endl;
-       exit(-1);
-   }
+	    cerr << "Cannot open output file " << fstr_P2 << " in the current directory; aborting." << endl;
+	    exit(-1);
+	}
         int32_t sizes [1];
         sizes[0] = sizeof(double);
         fwrite(sizes,4,1,fout_P2);    
@@ -1304,29 +1297,29 @@ int main (int argc, char *argv[]) {
             n1[i][population[k][i]] += 1.0;
             for(long j=i+1; j<m; j++) {
                 n2[i][j][population[k][i]][population[k][j]] += 1.0;
-       }
-   }
+	    }
+	}
     }
     n_samples += N;
-   
+	
     for(long i=0; i<m; i++) {
         for(long p=0; p<nRes[i]; p++) {
               n1[i][p] = n1[i][p]/n_samples;
               fwrite(&n1[i][p], sizeof(double), 1, fout_P1);
-   }
+	}
     }
-      
+		
     for(long i=0; i<m; i++) {
         for(long j=i+1; j<m; j++) {
             for(long q=0; q<nRes[j]; q++) {
                 for(long p=0; p<nRes[i]; p++) {
                     n2[i][j][p][q] = n2[i][j][p][q]/n_samples;
                     fwrite(&n2[i][j][p][q], sizeof(double), 1, fout_P2);
-		      }
-	       }
+                }
+            }
         }
     }
-   
+	
     fclose(fout_P1);
     fclose(fout_P2);
 
@@ -1335,26 +1328,26 @@ int main (int argc, char *argv[]) {
     // write unsorted
     seq_file = fopen("seq_unsorted.txt", "w");
     for(long i =0; i < N; i++)
-       fprintf(seq_file, "%d\n", seq_arr[i]);
+    	fprintf(seq_file, "%d\n", seq_arr[i]);
     fclose(seq_file);
 
     // write sorted
     sort(seq_arr, seq_arr + N);
     seq_file = fopen("seq_sorted.txt", "w");
     for(long i =0; i < N; i++)
-       fprintf(seq_file, "%d\n", seq_arr[i]);
+    	fprintf(seq_file, "%d\n", seq_arr[i]);
     fclose(seq_file);
 #endif // check sequence
     delete []seq_arr;
 
 
-   
+	
     // stop timer
     double wall_stop = get_wall_time();
     double cpu_stop  = get_cpu_time();
-   
+	
     printf("Wall Time = %e s\n",wall_stop - wall_start);
     printf("CPU Time  = %e s\n",cpu_stop - cpu_start);
-   
+	
     return 0;
 }

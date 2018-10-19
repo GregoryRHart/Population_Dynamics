@@ -1,9 +1,9 @@
 CXX = g++
 USE_OMP = y
-DEBUG = n
+DEBUG = y
 UNIT_TESTING = n
-CXXFLAGS = -std=c++11 -O3 -I./ -I/home/ccheng32/project/lib/include 
-LIBS = -L./ -L/home/ccheng32/project/lib/lib -l:libtrng4.a
+CXXFLAGS = -std=c++11 -O3 -I./ -I/home/grhart2/Potts_ompGPU/_lit/trng/include -I${BOOSTROOT}/include
+LIBS = -L./ -L/home/grhart2/Potts_ompGPU/_lit/trng/lib -ltrng4
 
 ifeq ($(DEBUG),y)
 	CXXFLAGS += -DDEBUG

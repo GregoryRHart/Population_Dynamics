@@ -461,29 +461,18 @@ double Tresponse(double affinity, double num_Ecells, double b, long N, double af
 }
 
 void init_energy_index(int m, int size, std::vector<std::vector<int>> & arr_idx){
-	arr_idx.resize(size);
-	int i = 0;
-	bool rev = true;
-	while(i < m)
-	{
-		if(rev)
-			for(int j = 0; j < size; j++)
-			{
-				if(i < m)
-					arr_idx[j].push_back(i);
-				else break;
-				i++;
-			}
-		else
-			for(int j = size-1; j >=0; j--)
-			{
-				if(i < m)
-					arr_idx[j].push_back(i);
-				else break;
-				i++;
-			}
-		rev = !rev;
-	}
+    arr_idx.resize(size);
+    int i = 0;
+    bool rev = true;
+    while(i < m) {
+        for(int j = 0; j < size; j++) {
+	    if(i < m)
+	        arr_idx[j].push_back(i);
+	    else
+                break;
+	    i++;
+        }
+    }
 }
 
 int check_duplicate(int* arr, int size){
