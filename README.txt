@@ -28,5 +28,3 @@ all of these functions have optional arguements
 NOTES
 
 The code takes as input files: inputs.dat, P1_target.dat, P2_target.dat, resIdx.dat, h.dat, J.dat, epitopes.dat (optional) and the files listed in epitopes.dat.
-
-There is a lot of work that still needs to be done on this code. Both in terms of functionality and optimization.
